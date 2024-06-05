@@ -1,0 +1,17 @@
+{
+    "command": "train",
+    "experiment_name": "whole_brain_segmentation",
+    "rootdir_train_img": "/generate_synthetic_images/bdd_1/out_synthetic_images_v1/",
+    "rootdir_train_labels": "/generate_synthetic_images/bdd_1/out_synthetic_images_v1/subcap-001_ses-02_to_subcandi-015_seg.nii.gz",
+    "rootdir_test": "/home/emma/data/IRM-CAP/derivatives/segmentations_manuelles/final",
+    "net_model" : "unet",
+    "num_epochs": 250,
+    "batch_size": 4,
+    "patch_size": [128, 128, 64],
+    "queue_length" : 12,
+    "samples_per_volume" : 8,
+    "num_workers": 0,
+    "initial_lr" : 0.001,
+    "write_images": true,
+    "seed" : 42
+  }
