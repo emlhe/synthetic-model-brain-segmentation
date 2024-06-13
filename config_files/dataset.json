@@ -4,10 +4,10 @@
  }, 
  "labels": {
    "background":0,
-   "Left-Cerebral-White-Matter": 1,	
-   "Left-Cerebral-Cortex": 2,		
-   "Left-Lateral-Ventricle": 3,		
-   "Left-Inf-Lat-Vent": 4,		
+   "Left-Cerebral-White-Matter": 1,	  
+   "Left-Cerebral-Cortex": 2,		      
+   "Left-Lateral-Ventricle": 3,		    
+   "Left-Inf-Lat-Vent": 4,		        
    "Left-Cerebellum-White-Matter": 5,	
    "Left-Cerebellum-Cortex": 6,		
    "Left-Thalamus-Proper": 7,		
@@ -47,6 +47,6 @@
  }, 
  "numTraining": 16, 
  "file_ending": ".nii.gz",
- "suffixe_img": "",
- "suffixe_labels": ""
+ "suffixe_img": "synth",
+ "suffixe_labels": "seg"
  }

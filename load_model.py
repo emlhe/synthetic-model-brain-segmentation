@@ -6,29 +6,57 @@ import pytorch_lightning as pl
 import torchio as tio
 
 
-def load(path, model, lr, n_class):
+def load(weights_path, model, lr, dropout, loss_type, n_class):
     if model == "unet":
         net = monai.networks.nets.UNet(
             spatial_dims=3,
             in_channels=1,
             out_channels=n_class,
-            channels=(24, 48, 96, 192, 384),
+            channels=(24, 48, 96, 192, 384),#(32, 64, 128, 256, 320, 320),#
             strides=(2, 2, 2, 2),
-            norm = Norm.BATCH
+            norm = Norm.BATCH,
+            dropout=dropout     
         )
-        optim=torch.optim.Adam
+        optim=torch.optim.AdamW
 
+    if loss_type == "Dice":
+        crit = monai.losses.DiceLoss(include_background=True,
+        to_onehot_y=False,
+        sigmoid=False,
+        softmax=True,
+        other_act=None,
+        squared_pred=False,
+        jaccard=False,
+        reduction="mean",
+        smooth_nr=1e-05,
+        smooth_dr=1e-05,
+        batch=True)# monai.losses.GeneralizedWassersteinDiceLoss
+    elif loss_type == "DiceCE":
+        crit = monai.losses.DiceCELoss(include_background=True,
+        to_onehot_y=False,
+        sigmoid=False,
+        softmax=True,
+        other_act=None,
+        squared_pred=False,
+        jaccard=False,
+        reduction="mean",
+        smooth_nr=1e-05,
+        smooth_dr=1e-05,
+        batch=True)# monai.losses.GeneralizedWassersteinDiceLoss
+        
     model = Model(
         net=net,
-        criterion=monai.losses.DiceCELoss(softmax=True),
+        criterion= crit,
         learning_rate=lr,
         optimizer_class=optim,
     )
 
-    if path != None:
-        model.load_state_dict(torch.load(path))
+    if weights_path != None:
+        model.load_state_dict(torch.load(weights_path))
         model.eval()
     return model
+
+
 
 class Model(pl.LightningModule):
     def __init__(self, net, criterion, learning_rate, optimizer_class):
@@ -44,13 +72,10 @@ class Model(pl.LightningModule):
 
     def prepare_batch(self, batch):
         return batch["img"][tio.DATA], batch["seg"][tio.DATA]
-    
-    def prepare_batch_subject(self, batch):
-        return batch["img"][tio.DATA], batch["seg"][tio.DATA], batch["subject"]
-
 
     def infer_batch(self, batch):
         x, y = self.prepare_batch(batch)
+        # print(x.shape)
         y_hat = self.net(x)
         return y_hat, y
 

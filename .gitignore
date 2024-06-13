@@ -1,1 +1,4 @@
-synthetic_images_database/*
+data/*
+out-predictions/*
+unet_logs/*
+weights/*

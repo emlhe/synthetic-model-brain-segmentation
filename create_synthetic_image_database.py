@@ -20,8 +20,6 @@ def get_subjects_list():
     cap_img = ["001", "005", "006", "008", "009", "010","012", "030","031","036","040","041","044","066","068","069"]
     sessions_dict = {"001":"02", "005":"01", "006":"02", "008":"01", "009":"02", "010":"01","012":"01", "030":"01","031":"02","036":"01","040":"01","041":"01","044":"01","066":"01","068":"01","069":"01"}
 
-    print(random.randint(0, len(sessions_dict)))
-
     # GET ALL IMAGES + MASKS PATH FROM CAP AND CANDI
     path_cap = Path("/home/emma/data/IRM-CAP/derivatives/Brain_extraction/FS-SynthStrip/CAP/")
     path_candi = Path("/home/emma/data/CANDI/derivatives/Brain_extraction/")
@@ -31,7 +29,7 @@ def get_subjects_list():
     list_seg_candi = sorted(path_candi.glob("**/*_seg.nii.gz"))
 
     assert len(list_img_cap) == len(list_seg_cap)
-    # REMOVE IMAGES FROM CAP 
+    # REMOVE IMAGES NOT IN LIST FROM CAP 
     i=0
     while i < len(list_img_cap):
         path=list_img_cap[i]
@@ -50,11 +48,12 @@ def get_subjects_list():
                 list_img_cap.pop(i)
                 list_seg_cap.pop(i)
             else:
-                print("\tRight subject, right session")
+                print("\tSubject in list, right session")
                 i+=1
     return list_img_cap, list_seg_cap, list_img_candi, list_seg_candi
 
-def register_images(list_img_cap,list_seg_cap, list_img_candi, list_seg_candi,context):            
+# Apply transformations so that CAP and CANDI img + seg are in the same space 
+def register_images(list_img_cap,list_seg_cap, list_img_candi, list_seg_candi, out, context):            
     registered_masks_paths = []
     associated_masks_paths = []
     for path_img_cap, path_seg_cap in zip(list_img_cap, list_seg_cap):
@@ -97,23 +96,6 @@ def register_images(list_img_cap,list_seg_cap, list_img_candi, list_seg_candi,co
             flt_mat_file = out + ".mat"
             associated_mask = path_seg_cap
 
-        # USE FLIRT TO REGISTER CAP IMAGE TO THE CANDI IMAGE, THEN GET THE OUTPUT TRANSFO MATRIX TO REGISTER THE MASK ON THE CANDI IMAGE
-        # flt = fsl.FLIRT()
-        # flt.inputs.in_file = flt_in_file
-        # flt.inputs.reference = flt_ref_file
-        # flt.inputs.out_file=flt_out_file
-        # flt.inputs.out_matrix_file=flt_mat_file
-        # print(flt.cmdline)
-        # res=flt.run() 
-
-        # flt = fsl.FLIRT()
-        # flt.inputs.in_file = flt_in_seg_file
-        # flt.inputs.apply_xfm = True
-        # flt.inputs.reference = flt_ref_file
-        # flt.inputs.out_file=flt_out_seg_file
-        # flt.inputs.in_matrix_file=flt_mat_file
-        # print(flt.cmdline)
-        # res=flt.run() 
         flt_in_file="/home/emma/data/CANDI/derivatives/Brain_extraction/sub-023/sub-023_synthstripped.nii.gz"
         flt_ref_file="/home/emma/data/IRM-CAP/derivatives/Brain_extraction/FS-SynthStrip/CAP/sub-001/ses-02/anat/sub-001_ses-02_synthstripped.nii.gz"
         flt_mat_file="synthetic_images/bdd_3/out_registered_images/subcandi-023_to_subcap-001_ses-02.mat"
@@ -136,8 +118,8 @@ def register_images(list_img_cap,list_seg_cap, list_img_candi, list_seg_candi,co
     return registered_masks_paths, associated_masks_paths
 
 # CREATE SYNTHETIC IMAGES FROM THE LESION MASK + WHOLE BRAIN SEG
-def generate_synth_img(context, registered_masks_paths=[], associated_masks_paths=[]):
-    out_dir = "./synthetic_images/bdd_"+context+"/out_synthetic_images"
+def generate_synth_img(context, registered_masks_paths=[], associated_masks_paths=[], outpath = "./", n=0):
+
     for r_mask_path, a_mask_path in zip(registered_masks_paths,associated_masks_paths):
         candi_subject = str(r_mask_path).split("subcandi-")[-1][:3]
         cap_subject = str(r_mask_path).split("subcap-")[-1][:3]
@@ -145,19 +127,20 @@ def generate_synth_img(context, registered_masks_paths=[], associated_masks_path
 
         r_mask_volume = nib.load(r_mask_path)
         a_mask_volume = nib.load(a_mask_path)
-        if len(np.unique(np.asarray(r_mask_volume))) > 2:
-            whole_brain_seg_volume = a_mask_volume
-            whole_brain_seg = np.asarray(whole_brain_seg_volume.get_fdata())
-            lesion_mask = np.asarray(r_mask_volume.get_fdata()).astype(bool)
-            save_mask_file = 'subcap-'+cap_subject+'_ses-'+cap_session+'_to_subcandi-'+candi_subject+'_seg.nii.gz'
-            save_generated_image_file = save_mask_file.split('_seg.nii.gz')[0]+'_synthetic.nii.gz'
-        else:
+        if len(np.unique(np.asarray(r_mask_volume))) > 2 : # Check which is the whole brain seg and which is the lesion seg (if more than 1 label)
             whole_brain_seg_volume = r_mask_volume
             whole_brain_seg = np.asarray(whole_brain_seg_volume.get_fdata())
             lesion_mask = np.asarray(a_mask_volume.get_fdata()).astype(bool)
-            save_mask_file = 'subcandi-'+candi_subject+'_to_subcap-'+cap_subject+'_ses-'+cap_session+'_seg.nii.gz'
-            save_generated_image_file = save_mask_file.split('_seg.nii.gz')[0]+'_synthetic.nii.gz'
-            
+            save_mask_file = 'subcandi-'+candi_subject+'_to_subcap-'+cap_subject+'_ses-'+cap_session+'_seg'+n+'.nii.gz'
+            save_generated_image_file = save_mask_file.split('_seg.nii.gz')[0]+'_synth'+n+'.nii.gz'
+
+        else:
+            whole_brain_seg_volume = a_mask_volume
+            whole_brain_seg = np.asarray(whole_brain_seg_volume.get_fdata())
+            lesion_mask = np.asarray(r_mask_volume.get_fdata()).astype(bool)
+            save_mask_file = 'subcap-'+cap_subject+'_ses-'+cap_session+'_to_subcandi-'+candi_subject+'_seg'+n+'.nii.gz'
+            save_generated_image_file = save_mask_file.split('_seg.nii.gz')[0]+'_synth'+n+'.nii.gz'
+
         whole_brain_and_lesion_seg = np.where(lesion_mask==1, 64, whole_brain_seg)
         whole_brain_and_lesion_seg = torch.tensor(whole_brain_and_lesion_seg).type(torch.int16).unsqueeze(dim=0)
 
@@ -165,10 +148,11 @@ def generate_synth_img(context, registered_masks_paths=[], associated_masks_path
             tissues=tio.LabelMap(tensor=whole_brain_and_lesion_seg)
         )
 
+        resample = tio.Resample(1)
         rescale_transform = tio.RescaleIntensity(out_min_max=(0, 1), percentiles=(1, 99), )
         simulation_transform = tio.RandomLabelsToImage(label_key='tissues', image_key='generated_mri', ignore_background=True)#, discretize=True)
         blurring_transform = tio.RandomBlur(std=0.3)
-        transform = tio.Compose([rescale_transform, simulation_transform, blurring_transform])
+        transform = tio.Compose([resample, rescale_transform, simulation_transform, blurring_transform])
 
         transformed = transform(subject)
 
@@ -176,10 +160,9 @@ def generate_synth_img(context, registered_masks_paths=[], associated_masks_path
         final_mask = nib.Nifti1Image(np.asarray(subject["tissues"][tio.DATA])[0,:,:,:], whole_brain_seg_volume.affine)
 
         
-        nib.save(final_mask, os.path.join(out_dir, save_mask_file))
-        nib.save(final_img, os.path.join(out_dir, save_generated_image_file))
-        print(f"Synthetic image saved in : {os.path.join(out_dir, save_generated_image_file)}")
-
+        nib.save(final_mask, os.path.join(outpath, save_mask_file))
+        nib.save(final_img, os.path.join(outpath, save_generated_image_file))
+        print(f"Synthetic image saved in : {os.path.join(outpath, save_generated_image_file)}")
 
 # CREATE SYNTHETIC IMAGES FROM THE LESION MASK + WHOLE BRAIN SEG
 def generate_synth_img_from_list(context, registered_masks_paths=[]):
@@ -239,24 +222,27 @@ def generate_synth_img_from_list(context, registered_masks_paths=[]):
         nib.save(final_img, os.path.join(out_dir, save_generated_image_file))
         print(f"Synthetic image saved in : {os.path.join(out_dir, save_generated_image_file)}")
 
-# img_cap,seg_cap, img_candi, seg_candi = get_subjects_list()
 
-outpath = './synthetic_images/bdd_'+data_format+'/out_registered_images'
-# if not os.path.exists(outpath):
-#     os.makedirs(outpath)
-# registered_masks_paths, associated_masks_path = register_images(img_cap,seg_cap, img_candi, seg_candi, context = data_format)
+img_cap, seg_cap, img_candi, seg_candi = get_subjects_list()
+
+outpath = './data/synthetic_images/bdd_'+data_format+'/out_registered_images'
+if not os.path.exists(outpath):
+    os.makedirs(outpath)
+registered_masks_paths, associated_masks_path = register_images(img_cap,seg_cap, img_candi, seg_candi, outpath, context = data_format)
 
 # registered_masks_paths = ["/home/emma/Projets/MRI_processing_scripts/synthetic_images/bdd_2/out_registered_images/subcandi-013_to_subcap-001_ses-02_registered-whole-brain-mask.nii.gz"]
 # associated_masks_path = ["/home/emma/data/IRM-CAP/derivatives/Brain_extraction/FS-SynthStrip/CAP/sub-001/ses-02/anat/sub-001_ses-02_mask.nii.gz"]
 # registered_masks_paths = ["./synthetic_images/bdd_1/out_registered_images/subcap-001_ses-02_to_subcandi-028_registered-lesion-mask.nii.gz"]
 # associated_masks_path = ["/home/emma/data/CANDI/derivatives/Brain_extraction/sub-028/sub-028_seg.nii.gz"]
+# reg_im_path = Path("./generate_synthetic_images/bdd_1/out_registered_images/")
+# registered_masks_paths = sorted(reg_im_path.glob("**/*_mask.nii.gz"))
 
-reg_im_path = Path("./generate_synthetic_images/bdd_1/out_registered_images/")
-
-registered_masks_paths = sorted(reg_im_path.glob("**/*_mask.nii.gz"))
-
-outpath = outpath.split("out_registered_images")[0] + "out_synthetic_images"
+outpath = os.join(outpath.split("out_registered_images")[0], "out_synthetic_images")
 if not os.path.exists(outpath):
     os.makedirs(outpath)
-generate_synth_img_from_list(data_format, registered_masks_paths)
+
+nb_example_per_subject = 2
+
+for n in range(nb_example_per_subject):
+    generate_synth_img(data_format, registered_masks_paths, associated_masks_path, outpath, n)
 
