@@ -1,0 +1,23 @@
+{
+    "command": "train",
+    "experiment_name": "whole_brain_segmentation",
+    "rootdir_train_img": "/home/emma/Projets/synthetic-model-brain-segmentation/data/Dataset_synthCandiStroke_r/Training",
+    "rootdir_train_labels": "/home/emma/Projets/synthetic-model-brain-segmentation/data/Dataset_synthCandiStroke_r/Training",
+    "rootdir_test": "/home/emma/Projets/synthetic-model-brain-segmentation/data/Dataset_synthCandiStroke/Test",
+    "net_model" : "unet",
+    "num_epochs": 1200,
+    "batch_size": 1,
+    "patch": true,
+    "patch_size": [192, 192, 192],
+    "queue_length" : 100,
+    "samples_per_volume" : 8,
+    "num_workers": 0,
+    "initial_lr" : 0.001,
+    "adaptative_lr" : true,
+    "write_images": true,
+    "seed" : 42,
+    "dropout" : 0.2,
+    "loss_type" : "DiceCE",
+    "layers" : 6,
+    "channels" : "(32, 64, 128, 256, 320, 320)"
+  }
