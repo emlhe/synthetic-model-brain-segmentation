@@ -16,5 +16,6 @@
     "write_images": true,
     "seed" : 42,
     "dropout" : 0.1,
-    "loss_type" : "Dice"
+    "loss_type" : "Dice",
+    "channels" : [24, 48, 96, 192, 384]
   }

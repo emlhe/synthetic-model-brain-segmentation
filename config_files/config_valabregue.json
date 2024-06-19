@@ -5,7 +5,7 @@
     "rootdir_train_labels": "/home/emma/Projets/synthetic-model-brain-segmentation/data/Dataset_synthCandiStroke_r/Training",
     "rootdir_test": "/home/emma/Projets/synthetic-model-brain-segmentation/data/Dataset_synthCandiStroke/Test",
     "net_model" : "unet",
-    "num_epochs": 500,
+    "num_epochs": 2000,
     "batch_size": 4,
     "patch": true,
     "patch_size": [128, 128, 128],
@@ -18,6 +18,5 @@
     "seed" : 42,
     "dropout" : 0.2,
     "loss_type" : "Dice",
-    "layers" : 5,
-    "channels" : "(24, 48, 96, 192, 384)"
+    "channels" : [24, 48, 96, 192, 384]
   }

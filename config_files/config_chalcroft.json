@@ -8,7 +8,7 @@
     "num_epochs": 1200,
     "batch_size": 1,
     "patch": true,
-    "patch_size": [192, 192, 192],
+    "patch_size": [128, 128, 128],
     "queue_length" : 100,
     "samples_per_volume" : 8,
     "num_workers": 0,
@@ -18,6 +18,5 @@
     "seed" : 42,
     "dropout" : 0.2,
     "loss_type" : "DiceCE",
-    "layers" : 6,
-    "channels" : "(32, 64, 128, 256, 320, 320)"
-  }
+    "channels" : [32, 64, 128, 256, 320, 320]
+}

@@ -6,11 +6,13 @@ import torchio as tio
 from torch.utils.data import random_split, DataLoader
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.callbacks import LearningRateMonitor
 
 import numpy as np
 import pandas as pd
 import monai
 import json
+
 
 from tqdm.auto import tqdm
 
@@ -27,7 +29,7 @@ from load_model import load
 #   Parameters  #
 #################
 
-config_file = "config004"
+config_file = "config_chalcroft"
 data_infos = "dataset_reduced"
 
 with open('./config_files/'+config_file+".json") as f:
@@ -44,6 +46,8 @@ with open('./config_files/'+config_file+".json") as f:
         batch_size = ctx["batch_size"]
         dropout = ctx["dropout"]
         loss_type = ctx['loss_type']
+        channels = ctx["channels"]
+        n_layers = len(channels)
         if ctx["patch"]:
             patch_size = ctx["patch_size"]
             queue_length = ctx["queue_length"]
@@ -200,15 +204,17 @@ val_dataloader = DataLoader(val_set, batch_size, num_workers=num_workers, pin_me
 print(f"\n# MODEL : {net_model}\n")
 
 # model = load("/home/emma/Projets/synthetic-model-brain-segmentation/weights/config001_11-6-2024-154543.pth", net_model, lr, num_classes)
-model = load(None, net_model, lr, dropout, loss_type, num_classes)
+model = load(None, net_model, lr, dropout, loss_type, num_classes, channels, num_epochs)
 
 
 ## Trainer 
 
-early_stopping = pl.callbacks.early_stopping.EarlyStopping(
-    monitor="val_loss",
-    patience = 5,
-)
+# early_stopping = pl.callbacks.early_stopping.EarlyStopping(
+#     monitor="val_loss",
+#     patience = 5,
+# )
+
+lr_monitor = LearningRateMonitor(logging_interval='step')
 
 trainer = pl.Trainer(
     max_epochs=num_epochs, # Number of pass of the entire training set to the network
@@ -217,6 +223,7 @@ trainer = pl.Trainer(
     precision=16,
     logger=logger,
     log_every_n_steps=1,
+    callbacks=[lr_monitor],
     # limit_train_batches=0.2 # For fast training
 )
 

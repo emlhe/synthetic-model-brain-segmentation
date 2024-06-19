@@ -4,16 +4,17 @@ import torch
 from monai.networks.layers.factories import Norm
 import pytorch_lightning as pl
 import torchio as tio
+import numpy as np
 
 
-def load(weights_path, model, lr, dropout, loss_type, n_class):
+def load(weights_path, model, lr, dropout, loss_type, n_class, channels, epochs):
     if model == "unet":
         net = monai.networks.nets.UNet(
             spatial_dims=3,
             in_channels=1,
             out_channels=n_class,
-            channels=(24, 48, 96, 192, 384),#(32, 64, 128, 256, 320, 320),#
-            strides=(2, 2, 2, 2),
+            channels=channels, #(24, 48, 96, 192, 384),#(32, 64, 128, 256, 320, 320),#
+            strides=np.ones(len(channels)-1, dtype=np.int8)*2,#(2, 2, 2, 2),
             norm = Norm.BATCH,
             dropout=dropout     
         )
@@ -49,6 +50,7 @@ def load(weights_path, model, lr, dropout, loss_type, n_class):
         criterion= crit,
         learning_rate=lr,
         optimizer_class=optim,
+        epochs = epochs,
     )
 
     if weights_path != None:
@@ -59,16 +61,22 @@ def load(weights_path, model, lr, dropout, loss_type, n_class):
 
 
 class Model(pl.LightningModule):
-    def __init__(self, net, criterion, learning_rate, optimizer_class):
+    def __init__(self, net, criterion, learning_rate, optimizer_class, epochs):
         super().__init__()
         self.lr = learning_rate
         self.net = net
         self.criterion = criterion
         self.optimizer_class = optimizer_class
+        self.epochs = epochs
+        # self.automatic_optimization = False
 
     def configure_optimizers(self):
         optimizer = self.optimizer_class(self.parameters(), lr=self.lr)
-        return optimizer
+        lr_scheduler = {
+        'scheduler': torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=1.0, end_factor=0.01, total_iters=self.epochs),
+        'name': 'lr_scheduler'
+        }
+        return [optimizer], [lr_scheduler]
 
     def prepare_batch(self, batch):
         return batch["img"][tio.DATA], batch["seg"][tio.DATA]
