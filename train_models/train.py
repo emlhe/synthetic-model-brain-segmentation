@@ -60,7 +60,8 @@ with open('./config_files/'+data_infos+".json") as f:
     suffixe_labels = data_info["suffixe_labels"]
     num_classes = len(data_info["labels"])
     file_ending = data_info["file_ending"]
-print(f"{num_classes} classes")
+    labels_names = list(data_info["labels"].keys())
+print(f"{num_classes} classes : {labels_names}")
 
 current_dateTime = datetime.now()
 id_run = config_file + "_" + str(current_dateTime.day) + "-" + str(current_dateTime.month) + "-" + str(current_dateTime.year) + "-" + str(current_dateTime.hour) + str(current_dateTime.minute) + str(current_dateTime.second) 
@@ -203,8 +204,8 @@ val_dataloader = DataLoader(val_set, batch_size, num_workers=num_workers, pin_me
 #############
 print(f"\n# MODEL : {net_model}\n")
 
-# model = load("/home/emma/Projets/synthetic-model-brain-segmentation/weights/config001_11-6-2024-154543.pth", net_model, lr, num_classes)
-model = load(None, net_model, lr, dropout, loss_type, num_classes, channels, num_epochs)
+model = load("/home/emma/Projets/synthetic-model-brain-segmentation/weights/config_chalcroft_17-6-2024-14228.pth",net_model, lr, dropout, loss_type, num_classes, channels, num_epochs)
+# model = load(None, net_model, lr, dropout, loss_type, num_classes, channels, num_epochs)
 
 
 ## Trainer 
@@ -233,10 +234,10 @@ trainer = pl.Trainer(
 print("\n# TRAINING\n")
 
 
-start = datetime.now()
-print("Training started at", start)
-trainer.fit(model=model, train_dataloaders=train_dataloader, val_dataloaders = val_dataloader)
-print("Training duration:", datetime.now() - start)
+# start = datetime.now()
+# print("Training started at", start)
+# trainer.fit(model=model, train_dataloaders=train_dataloader, val_dataloaders = val_dataloader)
+# print("Training duration:", datetime.now() - start)
 
 
 #################
@@ -244,7 +245,7 @@ print("Training duration:", datetime.now() - start)
 #################
 print("\n# SAVE MODEL\n")
 
-torch.save(model.state_dict(), save_model_weights_path)
+# torch.save(model.state_dict(), save_model_weights_path)
 
 print("model saved in : " + save_model_weights_path)
 
@@ -254,11 +255,11 @@ print("model saved in : " + save_model_weights_path)
 #################
 print("# INFERENCE")
 
-def inference(img_set, save = True, metric = False, data = ""):
+def inference(img_set, save = True, metric = False, df = None, data = ""):
     get_dice = monai.metrics.DiceMetric(include_background=False, reduction="none")
     get_hd = monai.metrics.HausdorffDistanceMetric(include_background=False, reduction="none")
     subjects_list = []
-
+ 
     for subject in img_set:
         print(subject)
         grid_sampler = tio.inference.GridSampler(
@@ -293,17 +294,18 @@ def inference(img_set, save = True, metric = False, data = ""):
             print(f"outputs_one_hot shape permuted: {outputs_one_hot.shape}")
             get_dice(outputs_one_hot.to(model.device), gt_tensor.to(model.device))
             get_hd(outputs_one_hot.to(model.device), gt_tensor.to(model.device))
-            subjects_list.append(subject.subject)
 
             print(f"subjects : {subjects_list}")
-            dice = get_dice.aggregate()
+            dice = list(get_dice.aggregate().cpu().numpy().squeeze())
             print(f"DICE : {dice}")
             get_dice.reset()
-            hd = get_hd.aggregate()
+            hd = list(get_hd.aggregate().cpu().numpy().squeeze())
             print(f"HD : {hd}")
             get_hd.reset()
-
             
+            df = df.append(dict(zip(df.columns,[subject.subject] + dice + hd)), ignore_index=True)
+            print(df)
+
         subject.add_image(pred, "prediction")
         new_subject = subject.apply_inverse_transform()
 
@@ -313,19 +315,24 @@ def inference(img_set, save = True, metric = False, data = ""):
             'filename_or_obj' : filename
         }
         
-        out_file = "./out-predictions/"+data+"/"+subject.subject
+        out_file = "./out-predictions/"+id_run+"/"+data+"/"+subject.subject
         if save :
             monai.data.NiftiSaver(out_file, output_postfix="pred").save(new_subject.prediction.data,meta_data=meta)
             monai.data.NiftiSaver(out_file, output_postfix="img").save(new_subject.img.data,meta_data=meta)
     if metric:
-        return dice.cpu().numpy().squeeze(), hd.cpu().numpy().squeeze(), subjects_list
+        return df
+
+df_labels = pd.DataFrame(columns=["Subjects"] + ["DICE " + label for label in labels_names[1:]] + ["HD " + label for label in labels_names[1:]])
 
 print("# Validation")
-dice_val, hd_val, sub_val = inference(val_subjects_dataset, metric = True, data="val")
+df_val = inference(val_subjects_dataset, metric = True, df = df_labels, data="val")
+df_val.to_csv("./out-predictions/"+id_run+"/scores_val.csv", index=False)
+
 print("# Test")
 inference(test_subjects_dataset, metric = False, data="test")
-print("# Training")
-dice_train, hd_train, sub_train = inference(train_subjects_dataset, metric = True, data="train")
 
-print(dice_val, hd_val, sub_val)
-print(dice_train, hd_train, sub_train)
+print("# Training")
+df_train = inference(train_subjects_dataset, metric = True, df = df_labels, data="train")
+df_train.to_csv("./out-predictions/"+id_run+"/scores_train.csv", index=False)
+
+#'''
