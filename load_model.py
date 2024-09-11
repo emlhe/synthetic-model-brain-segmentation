@@ -55,7 +55,7 @@ def load(weights_path, model, lr, dropout, loss_type, n_class, channels, epochs)
 
     if weights_path != None:
         model.load_state_dict(torch.load(weights_path))
-        model.eval()
+        # model.eval() # deactivate dropout layers https://discuss.pytorch.org/t/performance-highly-degraded-when-eval-is-activated-in-the-test-phase/3323
     return model
 
 

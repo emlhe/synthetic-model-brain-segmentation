@@ -1,14 +1,15 @@
 {
     "command": "train",
     "experiment_name": "whole_brain_segmentation",
-    "rootdir_train_img": "/home/emma/Projets/synthetic-model-brain-segmentation/data/Dataset_synthCandiStroke_r/Training",
-    "rootdir_train_labels": "/home/emma/Projets/synthetic-model-brain-segmentation/data/Dataset_synthCandiStroke_r/Training",
+    "rootdir_train_img": "/home/emma/Projets/synthetic-model-brain-segmentation/data/synthetic_images_database_synthseg/out_synthetic_images",
+    "rootdir_train_labels": "/home/emma/Projets/synthetic-model-brain-segmentation/data/synthetic_images_database_synthseg/out_synthetic_images",
     "rootdir_test-cap": "/home/emma/Projets/synthetic-model-brain-segmentation/data/Dataset_synthCandiStroke/Test",
     "rootdir_test_labels-cap": "/home/emma/Projets/synthetic-model-brain-segmentation/data/Dataset_synthCandiStroke/Test",
     "rootdir_test-healthy": "/home/emma/data/DATABASES/CANDI/derivatives/FREESURFER-synthseg",
     "rootdir_test_labels-healthy": "/home/emma/data/DATABASES/CANDI/derivatives/FREESURFER-synthseg",
     "net_model" : "unet",
-    "num_epochs": 1200,
+    "num_epochs": 650, 
+    "comment": "",
     "batch_size": 1,
     "patch": true,
     "patch_size": [128, 128, 128],
@@ -22,4 +23,5 @@
     "dropout" : 0.2,
     "loss_type" : "DiceCE",
     "channels" : [32, 64, 128, 256, 320, 320]
+
 }

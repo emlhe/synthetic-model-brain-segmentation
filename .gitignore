@@ -2,3 +2,5 @@ data/*
 out-predictions/*
 unet_logs/*
 weights/*
+*.nii
+*.nii.gz
