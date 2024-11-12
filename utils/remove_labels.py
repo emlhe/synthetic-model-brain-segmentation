@@ -10,7 +10,6 @@ from transforms import preprocess_label_map, preprocess
 from get_subjects import get_subjects
 
 
-
 def remove_labels(img_path, labels_path):
     img_dir=Path(img_path)
     labels_dir=Path(labels_path)

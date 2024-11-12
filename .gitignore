@@ -4,3 +4,5 @@ unet_logs/*
 weights/*
 *.nii
 *.nii.gz
+*.csv
+*.json
