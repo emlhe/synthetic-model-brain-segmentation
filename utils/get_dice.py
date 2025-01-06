@@ -7,9 +7,6 @@ import monai.metrics
 import torch
 import pandas as pd 
 import json 
-## Get the name of the lesion and json file w/ infos on labels or the id of the label 
-## get the paths of the predictions and the paths of the GT 
-## associate prediction / GT
 
 def consecutive(data, stepsize=1):
     return np.split(data, np.where(np.diff(data) != stepsize)[0]+1)

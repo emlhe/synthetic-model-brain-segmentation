@@ -26,16 +26,16 @@ def set_up():
 
     return args
 
-
 def main():
     args = set_up()
 
     paths_stroke_masks = sorted(args.masks.glob("**/*mask.nii.gz"))
     paths_labels = sorted(args.labels.glob("**/*labels.nii.gz"))
     
+    # New labels must be similar to the labels in dataset_reduced_labels.json"
     remap_dict = {4:3,5:1,6:4,7:5,8:6,9:7,10:8,11:3,12:3,13:1,14:9,15:10,16:11,17:12,18:5,19:1,20:2,21:3,22:3,23:1,24:4,25:5,26:6,27:7,28:8,29:9,30:10,31:12,32:5,33:13,34:14} # remap candi
     remap_dict = {1:2,2:1,3:11,4:3,5:4,6:5,7:8,8:7,9:6,10:10,11:12,12:9,13:0,14:0,15:0,16:13,17:14} # remap dbb 
-    
+
     if not args.normalized or not args.lo:
         paths_stroke_t1 = sorted(args.stroke_t1.glob("**/*T1w.nii.gz"))
         paths_base_t1 = sorted(args.base_t1.glob("**/*T1w.nii.gz"))
@@ -52,8 +52,6 @@ def main():
 
     else:
         generate_synth_img_stroke(paths_stroke_masks, paths_labels, args.out, args.n_generations, remap_dict, "stroke", "base")
-        
-
 
 def get_transform_from_json(json_file):
     with open(json_file) as f:
