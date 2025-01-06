@@ -1,28 +1,23 @@
 from pathlib import Path
 from datetime import datetime
 import os 
-
 import torch
 import torchio as tio
 from torch.utils.data import random_split, DataLoader
-import pytorch_lightning as pl
-from pytorch_lightning.loggers import TensorBoardLogger
-
-import numpy as np
+import lightning as pl
+from lightning.pytorch.loggers import TensorBoardLogger
+from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
+from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 import pandas as pd
 from nilearn import plotting
 import nibabel as nib
 import monai
 import json
-
-
+import argparse
 from tqdm.auto import tqdm
-
-import matplotlib.pyplot as plt 
-
 import sys
-sys.path.append("/home/emma/Projets/synthetic-model-brain-segmentation/")
-sys.path.append("/home/emma/Projets/synthetic-model-brain-segmentation/config_files/")
+sys.path.append("./")
+sys.path.append("./config_files/")
 from transforms import augment, preprocess
 from get_subjects import get_subjects
 from load_model import load
@@ -31,8 +26,12 @@ from load_model import load
 #   Parameters  #
 #################
 
-config_file = "config_chalcroft-002"
-data_infos = "dataset_reduced"
+parser = argparse.ArgumentParser(description='descr')
+parser.add_argument('-c', '--config_file', default=str, type=bool, help='Path of the config file')
+parser.add_argument('-d', '--dataset', type=str, help='Path of the dataset info file')
+args = parser.parse_args()
+config_file = args.config_file
+data_infos = args.dataset
 
 with open('./config_files/'+config_file+".json") as f:
         ctx = json.load(f)
@@ -53,6 +52,7 @@ with open('./config_files/'+config_file+".json") as f:
         loss_type = ctx['loss_type']
         channels = ctx["channels"]
         n_layers = len(channels)
+        overfit_batch = ctx["overfit_batch"]
         if ctx["patch"]:
             patch_size = ctx["patch_size"]
             queue_length = ctx["queue_length"]
@@ -74,7 +74,7 @@ print(f"{num_classes} classes : {labels_names}")
 
 current_dateTime = datetime.now()
 id_run = config_file + "_" + str(current_dateTime.day) + "-" + str(current_dateTime.month) + "-" + str(current_dateTime.year) + "-" + str(current_dateTime.hour) + str(current_dateTime.minute) + str(current_dateTime.second) 
-save_model_weights_path = "./weights/" + id_run + ".pth"
+save_model_weights = "./weights/" + id_run + ".pth"
 
 
 #################
@@ -82,7 +82,6 @@ save_model_weights_path = "./weights/" + id_run + ".pth"
 #################
 
 logger = TensorBoardLogger("unet_logs", name=config_file)
-# tensorboard --logdir /home/emma/Projets/synthetic-model-brain-segmentation/unet_logs/config001
 
 ##############
 #   Devices  #
@@ -123,12 +122,6 @@ test_label_paths = sorted(img_test_dir.glob('**/*_'+suffixe_labels_test+file_end
 test_img_healthy_paths = sorted(img_test_healthy_dir.glob('**/*'+suffixe_img_test_healthy+file_ending))
 test_label_healthy_paths = sorted(img_test_healthy_dir.glob('**/*'+suffixe_labels_test_healthy+file_ending))
 
-print(len(train_image_paths))
-print(len(train_label_paths))
-print(len(test_img_paths))
-print(len(test_label_paths))
-print(len(test_img_healthy_paths))
-print(len(test_label_healthy_paths))
 assert len(train_image_paths) == len(train_label_paths)
 assert len(test_img_paths) == len(test_label_paths)
 assert len(test_img_healthy_paths) == len(test_label_healthy_paths)
@@ -198,7 +191,6 @@ if ctx["patch"]:
     patch_sampler = tio.data.LabelSampler(
         patch_size=patch_size,
         label_name='seg',
-        # label_probabilities=probabilities,
     )
 
     train_set = tio.Queue(
@@ -239,150 +231,49 @@ val_dataloader = DataLoader(val_set, batch_size, num_workers=num_workers, pin_me
 #############
 print(f"\n# MODEL : {net_model}\n")
 
-model = load("weights/config_chalcroft-002_10-7-2024-18457.pth",net_model, lr, dropout, loss_type, num_classes, channels, num_epochs)
-
-# model = load(None, net_model, lr, dropout, loss_type, num_classes, channels, num_epochs)
-
+model = load(None, net_model, lr, dropout, loss_type, num_classes, channels, num_epochs)
 
 ## Trainer 
+lr_monitor = LearningRateMonitor(logging_interval='step')
+checkpoint_callback = ModelCheckpoint(
+    monitor='val_loss',
+    dirpath=save_model_weights,
+    save_weights_only=True,
+    filename='best_model_checkpoint-{epoch:02d}-{val_loss:.2f}')
 
-#early_stopping = pl.callbacks.early_stopping.EarlyStopping(
-#     monitor="val_loss",
-#     patience = 5,
-# )
-
-#lr_monitor = LearningRateMonitor(logging_interval='step')
-
-# trainer = pl.Trainer(
-#     max_epochs=num_epochs, # Number of pass of the entire training set to the network
-#     accelerator=device, 
-#     devices=1,
-#     precision=16,
-#     logger=logger,
-#     log_every_n_steps=1,
-#     # callbacks=[lr_monitor],
-#     # limit_train_batches=0.2 # For fast training
-# )
+trainer = pl.Trainer(
+    max_epochs=num_epochs, # Number of pass of the entire training set to the network
+    # deterministic=True, #Might make your system slower, but ensures reproducibility
+    accelerator=device, 
+    devices=1,
+    precision="32-true", # precision="16-mixed",
+    logger=logger,
+    log_every_n_steps=10,
+    overfit_batches=overfit_batch,
+    callbacks=[EarlyStopping(monitor="val_loss", mode="min", min_delta=0.0001, patience = 10), checkpoint_callback], #lr_monitor
+    # limit_train_batches=0.1 # For fast training
+)
 
 # #################
 # #   TRAINING    #
 # #################
-# print("\n# TRAINING\n")
+print("\n# TRAINING\n")
 
 
-# start = datetime.now()
-# print("Training started at", start)
-# trainer.fit(model=model, train_dataloaders=train_dataloader, val_dataloaders = val_dataloader)
-# print("Training duration:", datetime.now() - start)
+start = datetime.now()
+print("Training started at", start)
+trainer.fit(model=model, train_dataloaders=train_dataloader, val_dataloaders = val_dataloader)
+print("Training duration:", datetime.now() - start)
 
 
-#################
-#   SAVE MODEL  #
-#################
-# print("\n# SAVE MODEL\n")
+################
+#  SAVE MODEL  #
+################
+print("\n# SAVE MODEL\n")
 
-# torch.save(model.state_dict(), save_model_weights_path)
+torch.save(model.state_dict(), save_model_weights)
 
-# print("model saved in : " + save_model_weights_path)
+print("model saved in : " + save_model_weights)
 
-#################
-#   INFERENCE   #
-#################
-print("# INFERENCE")
-
-# model.eval()
-def inference(img_set, save = True, metric = False, df = None, data = ""):
-    get_dice = monai.metrics.DiceMetric(include_background=False, reduction="none")
-    get_hd = monai.metrics.HausdorffDistanceMetric(include_background=False, reduction="none")
-    subjects_list = []
- 
-    for subject in img_set:
-        print(subject)
-        grid_sampler = tio.inference.GridSampler(
-            subject,
-            patch_size,
-            patch_overlap=10,
-        )
-        aggregator = tio.inference.GridAggregator(grid_sampler)
-        patch_loader = DataLoader(grid_sampler)
-        subject.clear_history()
-
-        with torch.no_grad():
-            for patches_batch in tqdm(patch_loader, unit='batch'):
-                input_tensor = patches_batch['img'][tio.DATA]
-                locations = patches_batch[tio.LOCATION]
-                logits = model.net(input_tensor)
-                labels = logits.argmax(dim=tio.CHANNELS_DIMENSION, keepdim=True)
-                outputs = labels
-                aggregator.add_batch(outputs, locations)
-
-        output_tensor = aggregator.get_output_tensor()
-        print(f"output tensor shape : {output_tensor.shape}")
-        pred = tio.LabelMap(tensor=output_tensor, affine=subject.img.affine)
-        plotting.plot_img(nib.Nifti1Image(input_tensor.cpu().numpy().squeeze(), subject.img.affine), display_mode='tiled')
-        if metric:
-            if data == "train" or data == "val":
-                gt_tensor = subject['seg'][tio.DATA].unsqueeze(axis=0)
-            else:
-                gt_tensor = torch.nn.functional.one_hot(subject['seg'][tio.DATA].long(), num_classes=num_classes).permute(0, 4, 1, 2, 3)
-            print(f"gt tensor shape : {gt_tensor.shape}")
-            outputs_one_hot = torch.nn.functional.one_hot(output_tensor.long(), num_classes=num_classes)
-            print(f"outputs_one_hot shape : {outputs_one_hot.shape}")
-            outputs_one_hot = outputs_one_hot.permute(0, 4, 1, 2, 3)
-            print(f"outputs_one_hot shape permuted: {outputs_one_hot.shape}")
-            # if data == "test":
-            #     outputs_one_hot = outputs_one_hot[:,5,:,:,:].unsqueeze(axis=0)
-            get_dice(outputs_one_hot.to(model.device), gt_tensor.to(model.device))
-            get_hd(outputs_one_hot.to(model.device), gt_tensor.to(model.device))
-
-            print(f"subjects : {subjects_list}")
-            dice = get_dice.aggregate().cpu().numpy()
-            print(f"DICE : {dice}")
-            get_dice.reset()
-            hd = get_hd.aggregate().cpu().numpy()
-            print(f"HD : {hd}")
-            get_hd.reset()
-            
-            if data == "test":
-                df = df.append(dict(zip(df.columns,[subject.subject] + [dice[0]] + [hd[0]])), ignore_index=True)
-            else:
-                df = df.append(dict(zip(df.columns,[subject.subject] + list(dice.squeeze()) + list(hd.squeeze()))), ignore_index=True)
-            print(df)
-
-        subject.add_image(pred, "prediction")
-        new_subject = subject.apply_inverse_transform()
-
-       
-        if save :
-            out_file = "./out-predictions/"+id_run+"/"+data+"/"+subject.subject
-            if not os.path.exists(out_file):
-                os.makedirs(out_file)
-            pred = nib.Nifti1Image(new_subject.prediction.data.numpy().squeeze(), new_subject.prediction.affine)
-            gt = nib.Nifti1Image(new_subject.seg.data.numpy(), new_subject.seg.affine)
-            img = nib.Nifti1Image(new_subject.img.data.numpy().squeeze(), new_subject.img.affine)
-            nib.save(pred,f"{out_file}/{subject.subject}_pred.nii.gz")
-            nib.save(img,f"{out_file}/{subject.subject}_img.nii.gz")
-            nib.save(gt,f"{out_file}/{subject.subject}_seg.nii.gz")
-    if metric:
-        return df
-
-df_labels = pd.DataFrame(columns=["Subjects"] + ["DICE " + label for label in labels_names[1:]] + ["HD " + label for label in labels_names[1:]])
-
-# print("# Validation")
-# df_val = inference(val_subjects_dataset, metric = True, df = df_labels, data="val")
-# df_val.to_csv("./out-predictions/"+id_run+"/scores_val.csv", index=False)
-
-# print("# Training")
-# df_train = inference(train_subjects_dataset, metric = True, df = df_labels, data="train")
-# df_train.to_csv("./out-predictions/"+id_run+"/scores_train.csv", index=False)
-
-print("# Test")
-df_labels_test = pd.DataFrame(columns=["Subjects", "DICE Stroke-Lesion", "HD Stroke-Lesion"])
-df_test = inference(test_subjects_dataset, metric = True, df = df_labels_test, data="test")
-df_test.to_csv("./out-predictions/"+id_run+"/scores_test.csv", index=False)
-
-# print("# Test Healthy")
-# df_test_healthy = inference(test_healthy_subjects_dataset, metric = True, df = df_labels, data="test-healthy")
-# df_test_healthy.to_csv("./out-predictions/"+id_run+"/scores_test-healthy.csv", index=False)
 
 #'''

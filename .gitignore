@@ -6,4 +6,3 @@ weights/*
 *.nii.gz
 *.csv
 *.json
-config_files/*
